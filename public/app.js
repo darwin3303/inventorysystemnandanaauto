@@ -78,20 +78,26 @@ function headerHtml(comp){
       </div>
       <button class="iconbtn" id="themeBtn" title="Toggle theme">◐</button>
     </div>
-    ${comp ? tabsHtml() : ''}
   </header>`;
 }
 
-function tabsHtml(){
-  const tabs = ['search','brands','buy','equiv','summary'];
-  const labels = {search:'Search', brands:'Brands', buy:'To Buy', equiv:'Equiv', summary:'Summary'};
-  return `<div class="tabs">${tabs.map(t => `<button class="tab ${state.tab===t?'on':''}" data-tab="${t}">${labels[t]}</button>`).join('')}</div>`;
+function bottomNavHtml(){
+  const tabs = [
+    ['search','🔍','Search'], ['brands','🏷️','Brands'], ['buy','🛒','To Buy'],
+    ['equiv','🔗','Equiv'], ['summary','📊','Summary']
+  ];
+  return `<nav class="bottomnav">
+    ${tabs.map(([id,icon,label]) => `
+      <button class="navitem ${state.tab===id?'on':''}" data-tab="${id}">
+        <span class="ni">${icon}</span><span class="nl">${label}</span>
+      </button>`).join('')}
+  </nav>`;
 }
 
 function renderComponent(){
   const comp = currentComp();
   if (!comp) { state.view='home'; return renderHome(); }
-  if (state.loading) return `${headerHtml(comp)}<main><p class="loading">Loading…</p></main>`;
+  if (state.loading) return `${headerHtml(comp)}<main class="with-navbar"><p class="loading">Loading…</p></main>${bottomNavHtml()}`;
 
   const q = state.query.trim().toLowerCase();
   let items = state.items;
@@ -105,9 +111,10 @@ function renderComponent(){
   else body = renderSummary(comp);
 
   return `${headerHtml(comp)}
-  <main>${body}</main>
-  ${(state.tab==='search' || state.tab==='brands') ? `<button class="fab" id="fabAdd" title="Add a part">+</button>` : ''}
-  ${state.tab==='equiv' ? `<button class="fab" id="fabEquiv" title="New equivalent match">+</button>` : ''}`;
+  <main class="with-navbar">${body}</main>
+  ${(state.tab==='search' || state.tab==='brands' || state.tab==='buy') ? `<button class="fab" id="fabAdd" title="Add a part">+</button>` : ''}
+  ${state.tab==='equiv' ? `<button class="fab" id="fabEquiv" title="New equivalent match">+</button>` : ''}
+  ${bottomNavHtml()}`;
 }
 
 function renderSearch(items, comp){
@@ -273,8 +280,33 @@ function openItemForm(compId, existing, presetBrand){
       location: m.querySelector('#fLoc').value
     };
     try{
-      if (existing) await api(`/items/${existing.id}`, { method:'PATCH', body: JSON.stringify(payload) });
-      else await api(`/components/${compId}/items`, { method:'POST', body: JSON.stringify(payload) });
+      if (existing) {
+        await api(`/items/${existing.id}`, { method:'PATCH', body: JSON.stringify(payload) });
+        m.remove();
+        await loadComponent(compId);
+        return;
+      }
+
+      // Same name + same brand already in this component? Top up its stock instead of duplicating.
+      const dup = state.items.find(i =>
+        i.name.trim().toLowerCase() === name.toLowerCase() &&
+        (i.brand || '') === (payload.brand || '')
+      );
+      if (dup){
+        const addQty = payload.qty || 0;
+        if (addQty > 0) await api(`/items/${dup.id}/restock`, { method:'POST', body: JSON.stringify({ amount: addQty }) });
+        const patch = {};
+        if (payload.part_no && payload.part_no !== dup.part_no) patch.part_no = payload.part_no;
+        if (payload.location && payload.location !== dup.location) patch.location = payload.location;
+        if (payload.low_stock_override !== dup.low_stock_override) patch.low_stock_override = payload.low_stock_override;
+        if (Object.keys(patch).length) await api(`/items/${dup.id}`, { method:'PATCH', body: JSON.stringify(patch) });
+        m.remove();
+        await loadComponent(compId);
+        alert(`"${name}"${payload.brand ? ' ('+payload.brand+')' : ''} is already in your inventory — stock updated to ${dup.qty + addQty}.`);
+        return;
+      }
+
+      await api(`/components/${compId}/items`, { method:'POST', body: JSON.stringify(payload) });
       m.remove();
       await loadComponent(compId);
     }catch(e){ alert(e.message); }
