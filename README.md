@@ -78,8 +78,26 @@ render.yaml            Render Blueprint config
 | POST | `/api/components/:id/equiv` | `{ itemIds }` group as interchangeable |
 | POST | `/api/equiv/:groupId/ungroup` | dissolve a group |
 | GET/POST/DELETE | `/api/components/:id/locations` | manage storage bins |
+| GET/POST/DELETE | `/api/components/:id/brands` `/api/brands/:id` | manage the brand list |
 | GET | `/api/components/:id/summary` | low-stock + fast-moving data |
 | GET/POST | `/api/components/:id/export` `/import` | JSON backup / restore |
+
+## Updating an already-deployed database
+
+This version adds a `brands` table (brands are now managed like storage
+locations — add one from the Brands tab, then tag parts with it). If you
+already ran `schema.sql` once against your Neon database, run this once more
+in the Neon SQL editor (it's also included, commented out, at the bottom of
+`schema.sql`):
+
+```sql
+CREATE TABLE IF NOT EXISTS brands (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  component_id  uuid NOT NULL REFERENCES components(id) ON DELETE CASCADE,
+  name          text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_brands_component ON brands(component_id);
+```
 
 ## Notes
 

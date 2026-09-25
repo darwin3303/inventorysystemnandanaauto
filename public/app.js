@@ -16,7 +16,7 @@ async function api(path, opts){
   return data;
 }
 
-let state = { view:'home', compId:null, tab:'search', query:'', comps:[], items:[], locations:[], summary:null, loading:true };
+let state = { view:'home', compId:null, tab:'search', query:'', comps:[], items:[], locations:[], brands:[], summary:null, loading:true };
 
 async function loadHome(){
   state.loading = true; render();
@@ -26,11 +26,12 @@ async function loadHome(){
 
 async function loadComponent(id){
   state.loading = true; render();
-  const [items, locations] = await Promise.all([
+  const [items, locations, brands] = await Promise.all([
     api(`/components/${id}/items`),
-    api(`/components/${id}/locations`)
+    api(`/components/${id}/locations`),
+    api(`/components/${id}/brands`)
   ]);
-  state.items = items; state.locations = locations;
+  state.items = items; state.locations = locations; state.brands = brands;
   if (state.tab === 'summary') state.summary = await api(`/components/${id}/summary`);
   state.loading = false; render();
 }
@@ -136,13 +137,27 @@ function itemCard(i, comp){
 }
 
 function renderBrands(comp){
-  if (!state.items.length) return `<p class="empty">No parts yet.</p>`;
+  const brandChips = state.brands.length
+    ? `<div class="chiplist">${state.brands.map(b=>`<span class="chip">${esc(b.name)} <button data-delbrand="${b.id}">×</button></span>`).join('')}</div>`
+    : `<span class="section-note">No brands added yet.</span>`;
+  const manageCard = `<div class="card">
+    ${brandChips}
+    <div class="row-actions"><button id="addBrandBtn" class="gold">+ Add brand</button></div>
+  </div>`;
+
+  if (!state.brands.length){
+    return `<p class="section-note">Add the brands you stock, then add parts under each one.</p>${manageCard}`;
+  }
+
   const groups = {};
   state.items.forEach(i => { const b = i.brand || 'Unbranded'; (groups[b] = groups[b]||[]).push(i); });
-  return Object.keys(groups).sort().map(b =>
-    `<div class="group-title">${esc(b)} (${groups[b].length})</div>` +
-    groups[b].map(i => itemCard(i, comp)).join('')
-  ).join('');
+  const brandNames = state.brands.map(b=>b.name);
+  const orderedKeys = [...brandNames.filter(n=>groups[n]), ...Object.keys(groups).filter(k=>!brandNames.includes(k))];
+  const itemGroups = orderedKeys.length
+    ? orderedKeys.map(b => `<div class="group-title">${esc(b)} (${groups[b].length})</div>` + groups[b].map(i => itemCard(i, comp)).join('')).join('')
+    : `<p class="empty">No parts added under a brand yet — tap + to add one.</p>`;
+
+  return `<div class="group-title" style="margin-top:0">Brands</div>${manageCard}${itemGroups}`;
 }
 
 function renderBuy(comp){
@@ -212,11 +227,17 @@ function modal(html){
 
 function openItemForm(compId, existing){
   const locOpts = state.locations.map(l=>`<option ${existing&&existing.location===l.name?'selected':''}>${esc(l.name)}</option>`).join('');
+  const existingBrandMissing = existing && existing.brand && !state.brands.some(b=>b.name===existing.brand);
+  const brandOpts = state.brands.map(b=>`<option ${existing&&existing.brand===b.name?'selected':''}>${esc(b.name)}</option>`).join('')
+    + (existingBrandMissing ? `<option selected>${esc(existing.brand)}</option>` : '');
+  const brandField = state.brands.length
+    ? `<select id="fBrand"><option value="">— none —</option>${brandOpts}</select>`
+    : `<select id="fBrand" disabled><option value="">Add a brand first (Brands tab)</option></select>`;
   const m = modal(`
     <h2>${existing? 'Edit part' : 'Add part'}</h2>
     <div class="field"><label>Name</label><input id="fName" value="${existing?esc(existing.name):''}" placeholder="e.g. Bosch 15730"></div>
     <div class="field-row">
-      <div class="field"><label>Brand</label><input id="fBrand" value="${existing?esc(existing.brand||''):''}"></div>
+      <div class="field"><label>Brand</label>${brandField}</div>
       <div class="field"><label>Part #</label><input id="fPart" value="${existing?esc(existing.part_no||''):''}"></div>
     </div>
     <div class="field-row">
@@ -362,6 +383,17 @@ function wireEvents(){
   };
   document.querySelectorAll('[data-delloc]').forEach(el => el.onclick = async () => {
     await api(`/locations/${el.dataset.delloc}`, { method:'DELETE' });
+    await loadComponent(comp.id);
+  });
+  const addBrandBtn = document.getElementById('addBrandBtn');
+  if (addBrandBtn) addBrandBtn.onclick = async () => {
+    const n = prompt('Brand name (e.g. Bosch)'); if (!n) return;
+    await api(`/components/${comp.id}/brands`, { method:'POST', body: JSON.stringify({ name:n.trim() }) });
+    await loadComponent(comp.id);
+  };
+  document.querySelectorAll('[data-delbrand]').forEach(el => el.onclick = async () => {
+    if (!confirm('Remove this brand from the list? Parts already tagged with it keep the tag.')) return;
+    await api(`/brands/${el.dataset.delbrand}`, { method:'DELETE' });
     await loadComponent(comp.id);
   });
   const thresholdInput = document.getElementById('thresholdInput');

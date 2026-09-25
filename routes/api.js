@@ -198,6 +198,36 @@ router.delete('/locations/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ---------- brands ----------
+router.get('/components/:id/brands', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM brands WHERE component_id = $1 ORDER BY name ASC`,
+      [req.params.id]
+    );
+    ok(res, rows);
+  } catch (e) { next(e); }
+});
+
+router.post('/components/:id/brands', async (req, res, next) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO brands (component_id, name) VALUES ($1,$2) RETURNING *`,
+      [req.params.id, name.trim()]
+    );
+    ok(res, rows[0]);
+  } catch (e) { next(e); }
+});
+
+router.delete('/brands/:id', async (req, res, next) => {
+  try {
+    await pool.query(`DELETE FROM brands WHERE id = $1`, [req.params.id]);
+    res.status(204).end();
+  } catch (e) { next(e); }
+});
+
 // ---------- summary ----------
 router.get('/components/:id/summary', async (req, res, next) => {
   try {
@@ -236,19 +266,24 @@ router.get('/components/:id/export', async (req, res, next) => {
     if (!compRes.rows[0]) return notFound(res);
     const itemsRes = await pool.query(`SELECT * FROM items WHERE component_id = $1`, [req.params.id]);
     const locRes = await pool.query(`SELECT * FROM locations WHERE component_id = $1`, [req.params.id]);
-    ok(res, { component: compRes.rows[0], items: itemsRes.rows, locations: locRes.rows });
+    const brandRes = await pool.query(`SELECT * FROM brands WHERE component_id = $1`, [req.params.id]);
+    ok(res, { component: compRes.rows[0], items: itemsRes.rows, locations: locRes.rows, brands: brandRes.rows });
   } catch (e) { next(e); }
 });
 
 router.post('/components/:id/import', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const { items = [], locations = [] } = req.body;
+    const { items = [], locations = [], brands = [] } = req.body;
     await client.query('BEGIN');
     await client.query(`DELETE FROM items WHERE component_id = $1`, [req.params.id]);
     await client.query(`DELETE FROM locations WHERE component_id = $1`, [req.params.id]);
+    await client.query(`DELETE FROM brands WHERE component_id = $1`, [req.params.id]);
     for (const loc of locations) {
       await client.query(`INSERT INTO locations (component_id, name) VALUES ($1,$2)`, [req.params.id, loc.name]);
+    }
+    for (const b of brands) {
+      await client.query(`INSERT INTO brands (component_id, name) VALUES ($1,$2)`, [req.params.id, b.name]);
     }
     for (const it of items) {
       await client.query(

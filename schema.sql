@@ -18,6 +18,12 @@ CREATE TABLE IF NOT EXISTS locations (
   name          text NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS brands (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  component_id  uuid NOT NULL REFERENCES components(id) ON DELETE CASCADE,
+  name          text NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS items (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   component_id        uuid NOT NULL REFERENCES components(id) ON DELETE CASCADE,
@@ -42,3 +48,13 @@ CREATE INDEX IF NOT EXISTS idx_items_component ON items(component_id);
 CREATE INDEX IF NOT EXISTS idx_items_equiv ON items(equiv_group);
 CREATE INDEX IF NOT EXISTS idx_usage_item ON usage_log(item_id);
 CREATE INDEX IF NOT EXISTS idx_locations_component ON locations(component_id);
+CREATE INDEX IF NOT EXISTS idx_brands_component ON brands(component_id);
+
+-- If you already ran an earlier version of this schema, run this once to add
+-- the new brands table to an existing database (safe to re-run):
+-- CREATE TABLE IF NOT EXISTS brands (
+--   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+--   component_id  uuid NOT NULL REFERENCES components(id) ON DELETE CASCADE,
+--   name          text NOT NULL
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_brands_component ON brands(component_id);
