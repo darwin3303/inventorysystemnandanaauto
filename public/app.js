@@ -105,8 +105,8 @@ function renderComponent(){
 
   return `${headerHtml(comp)}
   <main>${body}</main>
-  ${state.tab==='search' ? `<button class="fab" id="fabAdd">+</button>` : ''}
-  ${state.tab==='equiv' ? `<button class="fab" id="fabEquiv">+</button>` : ''}`;
+  ${(state.tab==='search' || state.tab==='brands') ? `<button class="fab" id="fabAdd" title="Add a part">+</button>` : ''}
+  ${state.tab==='equiv' ? `<button class="fab" id="fabEquiv" title="New equivalent match">+</button>` : ''}`;
 }
 
 function renderSearch(items, comp){

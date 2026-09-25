@@ -19,8 +19,8 @@
 html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
 *{box-sizing:border-box;}
 body{margin:0; height:100%; background:var(--bg); color:var(--text);
-  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; font-size:15px; line-height:1.45;}
-h1,h2,h3,.brandfont{font-family:'Rajdhani',sans-serif;}
+  font-family:'Manrope',-apple-system,BlinkMacSystemFont,sans-serif; font-size:15px; line-height:1.5; letter-spacing:-.005em;}
+h1,h2,h3,.brandfont{font-family:'Manrope',sans-serif; letter-spacing:-.01em;}
 button{font-family:inherit; font-size:inherit;}
 input,select{font-family:inherit; font-size:16px;}
 
@@ -43,7 +43,7 @@ main{max-width:680px; margin:0 auto; padding:16px 16px 90px;}
   padding:18px 16px; cursor:pointer; text-align:left; transition:border-color .15s;}
 .comp-card:active{border-color:var(--gold);}
 .comp-card .em{font-size:26px; display:block; margin-bottom:10px;}
-.comp-card .nm{font-weight:700; display:block; font-family:'Rajdhani',sans-serif; font-size:17px;}
+.comp-card .nm{font-weight:700; display:block; font-size:16px; letter-spacing:-.01em;}
 .comp-card .ct{color:var(--muted); font-size:13px; margin-top:3px; display:block;}
 .comp-card.add{display:flex; align-items:center; justify-content:center; flex-direction:column;
   border-style:dashed; color:var(--muted); min-height:104px;}
@@ -63,7 +63,7 @@ main{max-width:680px; margin:0 auto; padding:16px 16px 90px;}
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:13px 15px; margin-bottom:10px;}
 .item-row{display:flex; align-items:center; gap:10px;}
 .item-main{flex:1; min-width:0;}
-.item-name{font-weight:700; font-family:'Rajdhani',sans-serif; font-size:16.5px;}
+.item-name{font-weight:700; font-size:15.5px; letter-spacing:-.01em;}
 .item-sub{color:var(--muted); font-size:13px; margin-top:2px;}
 .qty-pill{background:var(--surface2); border-radius:20px; padding:5px 12px; font-weight:700; font-size:13px; flex-shrink:0;}
 .qty-pill.low{background:var(--danger); color:#fff;}
@@ -73,7 +73,7 @@ main{max-width:680px; margin:0 auto; padding:16px 16px 90px;}
 .row-actions button.danger{color:var(--danger); border-color:var(--danger);}
 .row-actions button.gold{background:var(--gold); color:var(--gold-ink); border-color:var(--gold);}
 
-.group-title{font-weight:700; margin:20px 0 8px; font-size:14px; color:var(--muted); font-family:'Rajdhani',sans-serif; letter-spacing:.02em;}
+.group-title{font-weight:700; margin:20px 0 8px; font-size:13.5px; color:var(--muted); letter-spacing:.01em;}
 .group-title:first-child{margin-top:0;}
 .section-note{color:var(--muted); font-size:13px; margin-bottom:12px;}
 
@@ -85,7 +85,7 @@ main{max-width:680px; margin:0 auto; padding:16px 16px 90px;}
   justify-content:center; z-index:20;}
 .sheet{background:var(--surface); width:100%; max-width:680px; border-radius:18px 18px 0 0;
   padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px)); max-height:85vh; overflow-y:auto; border-top:3px solid var(--gold);}
-.sheet h2{margin:0 0 14px; font-size:19px; font-family:'Rajdhani',sans-serif;}
+.sheet h2{margin:0 0 14px; font-size:18px; font-weight:700; letter-spacing:-.01em;}
 .field{margin-bottom:13px;}
 .field label{display:block; font-size:13px; color:var(--muted); margin-bottom:5px; font-weight:600;}
 .field input, .field select{width:100%; background:var(--surface2); border:1px solid var(--line);
