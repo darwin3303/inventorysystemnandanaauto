@@ -16,7 +16,7 @@ async function api(path, opts){
   return data;
 }
 
-let state = { view:'home', compId:null, tab:'search', query:'', comps:[], items:[], locations:[], brands:[], summary:null, loading:true };
+let state = { view:'home', compId:null, tab:'search', query:'', comps:[], items:[], locations:[], brands:[], brandFilter:null, summary:null, loading:true };
 
 async function loadHome(){
   state.loading = true; render();
@@ -25,7 +25,7 @@ async function loadHome(){
 }
 
 async function loadComponent(id){
-  state.loading = true; render();
+  state.loading = true; state.brandFilter = null; render();
   const [items, locations, brands] = await Promise.all([
     api(`/components/${id}/items`),
     api(`/components/${id}/locations`),
@@ -137,27 +137,33 @@ function itemCard(i, comp){
 }
 
 function renderBrands(comp){
-  const brandChips = state.brands.length
-    ? `<div class="chiplist">${state.brands.map(b=>`<span class="chip">${esc(b.name)} <button data-delbrand="${b.id}">×</button></span>`).join('')}</div>`
-    : `<span class="section-note">No brands added yet.</span>`;
-  const manageCard = `<div class="card">
-    ${brandChips}
-    <div class="row-actions"><button id="addBrandBtn" class="gold">+ Add brand</button></div>
+  const active = state.brandFilter; // null = "All", else a brand name string
+  const subtabs = `<div class="tabs subtabs">
+    <button class="tab ${active===null?'on':''}" data-brandtab="">All</button>
+    ${state.brands.map(b=>`<button class="tab ${active===b.name?'on':''}" data-brandtab="${esc(b.name)}">${esc(b.name)}</button>`).join('')}
+    <button class="tab addtab" id="addBrandTabBtn">+ Add brand</button>
   </div>`;
 
   if (!state.brands.length){
-    return `<p class="section-note">Add the brands you stock, then add parts under each one.</p>${manageCard}`;
+    return `${subtabs}<p class="section-note">Add the brands you stock, then add parts under each one.</p>`;
   }
 
-  const groups = {};
-  state.items.forEach(i => { const b = i.brand || 'Unbranded'; (groups[b] = groups[b]||[]).push(i); });
-  const brandNames = state.brands.map(b=>b.name);
-  const orderedKeys = [...brandNames.filter(n=>groups[n]), ...Object.keys(groups).filter(k=>!brandNames.includes(k))];
-  const itemGroups = orderedKeys.length
-    ? orderedKeys.map(b => `<div class="group-title">${esc(b)} (${groups[b].length})</div>` + groups[b].map(i => itemCard(i, comp)).join('')).join('')
-    : `<p class="empty">No parts added under a brand yet — tap + to add one.</p>`;
-
-  return `<div class="group-title" style="margin-top:0">Brands</div>${manageCard}${itemGroups}`;
+  let body;
+  if (active === null){
+    const groups = {};
+    state.items.forEach(i => { const b = i.brand || 'Unbranded'; (groups[b] = groups[b]||[]).push(i); });
+    const brandNames = state.brands.map(b=>b.name);
+    const orderedKeys = [...brandNames.filter(n=>groups[n]), ...Object.keys(groups).filter(k=>!brandNames.includes(k))];
+    body = orderedKeys.length
+      ? orderedKeys.map(b => `<div class="group-title">${esc(b)} (${groups[b].length})</div>` + groups[b].map(i => itemCard(i, comp)).join('')).join('')
+      : `<p class="empty">No parts added under a brand yet — pick a brand tab above and tap + to add one.</p>`;
+  } else {
+    const brandObj = state.brands.find(b => b.name === active);
+    const items = state.items.filter(i => i.brand === active);
+    const removeRow = brandObj ? `<div class="row-actions" style="margin-bottom:14px;"><button data-delbrand="${brandObj.id}" class="danger">Remove "${esc(active)}" from brand list</button></div>` : '';
+    body = removeRow + (items.length ? items.map(i => itemCard(i, comp)).join('') : `<p class="empty">No parts under ${esc(active)} yet — tap + to add one.</p>`);
+  }
+  return subtabs + body;
 }
 
 function renderBuy(comp){
@@ -225,11 +231,13 @@ function modal(html){
   return wrap;
 }
 
-function openItemForm(compId, existing){
+function openItemForm(compId, existing, presetBrand){
   const locOpts = state.locations.map(l=>`<option ${existing&&existing.location===l.name?'selected':''}>${esc(l.name)}</option>`).join('');
   const existingBrandMissing = existing && existing.brand && !state.brands.some(b=>b.name===existing.brand);
-  const brandOpts = state.brands.map(b=>`<option ${existing&&existing.brand===b.name?'selected':''}>${esc(b.name)}</option>`).join('')
-    + (existingBrandMissing ? `<option selected>${esc(existing.brand)}</option>` : '');
+  const brandOpts = state.brands.map(b=>{
+    const isSelected = existing ? existing.brand===b.name : presetBrand===b.name;
+    return `<option ${isSelected?'selected':''}>${esc(b.name)}</option>`;
+  }).join('') + (existingBrandMissing ? `<option selected>${esc(existing.brand)}</option>` : '');
   const brandField = state.brands.length
     ? `<select id="fBrand"><option value="">— none —</option>${brandOpts}</select>`
     : `<select id="fBrand" disabled><option value="">Add a brand first (Brands tab)</option></select>`;
@@ -333,7 +341,7 @@ function wireEvents(){
   }
 
   const fabAdd = document.getElementById('fabAdd');
-  if (fabAdd) fabAdd.onclick = () => openItemForm(comp.id, null);
+  if (fabAdd) fabAdd.onclick = () => openItemForm(comp.id, null, state.tab==='brands' ? state.brandFilter : null);
 
   document.querySelectorAll('[data-edit]').forEach(el => el.onclick = () => {
     const item = state.items.find(i=>i.id===el.dataset.edit); openItemForm(comp.id, item);
@@ -385,15 +393,20 @@ function wireEvents(){
     await api(`/locations/${el.dataset.delloc}`, { method:'DELETE' });
     await loadComponent(comp.id);
   });
-  const addBrandBtn = document.getElementById('addBrandBtn');
-  if (addBrandBtn) addBrandBtn.onclick = async () => {
+  const addBrandTabBtn = document.getElementById('addBrandTabBtn');
+  if (addBrandTabBtn) addBrandTabBtn.onclick = async () => {
     const n = prompt('Brand name (e.g. Bosch)'); if (!n) return;
-    await api(`/components/${comp.id}/brands`, { method:'POST', body: JSON.stringify({ name:n.trim() }) });
+    const b = await api(`/components/${comp.id}/brands`, { method:'POST', body: JSON.stringify({ name:n.trim() }) });
+    state.brandFilter = b.name;
     await loadComponent(comp.id);
   };
+  document.querySelectorAll('[data-brandtab]').forEach(el => el.onclick = () => {
+    state.brandFilter = el.dataset.brandtab || null; render();
+  });
   document.querySelectorAll('[data-delbrand]').forEach(el => el.onclick = async () => {
     if (!confirm('Remove this brand from the list? Parts already tagged with it keep the tag.')) return;
     await api(`/brands/${el.dataset.delbrand}`, { method:'DELETE' });
+    state.brandFilter = null;
     await loadComponent(comp.id);
   });
   const thresholdInput = document.getElementById('thresholdInput');

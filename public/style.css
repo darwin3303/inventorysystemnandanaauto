@@ -52,6 +52,10 @@ main{max-width:680px; margin:0 auto; padding:16px 16px 90px;}
 .loading{color:var(--muted); text-align:center; padding:40px 20px;}
 
 .tabs{display:flex; gap:4px; padding:0 16px 10px; overflow-x:auto;}
+.tabs.subtabs{padding:0 0 14px; margin:0;}
+.subtabs .tab{color:var(--muted); background:var(--surface2); border-color:var(--line);}
+.subtabs .tab.on{background:var(--gold); color:var(--gold-ink); border-color:var(--gold);}
+.subtabs .tab.addtab{border-style:dashed; color:var(--gold); background:transparent;}
 .tab{background:none; border:1px solid transparent; color:rgba(255,255,255,.65); padding:6px 13px;
   border-radius:20px; white-space:nowrap; cursor:pointer; font-weight:600; font-size:13.5px;}
 .tab.on{background:var(--gold); color:var(--gold-ink); border-color:var(--gold);}
