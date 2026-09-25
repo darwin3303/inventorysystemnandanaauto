@@ -274,7 +274,7 @@ router.get('/components/:id/export', async (req, res, next) => {
 router.post('/components/:id/import', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const { items = [], locations = [], brands = [] } = req.body;
+    const { items = [], locations = [], brands = [], usage = [], settings = null } = req.body;
     await client.query('BEGIN');
     await client.query(`DELETE FROM items WHERE component_id = $1`, [req.params.id]);
     await client.query(`DELETE FROM locations WHERE component_id = $1`, [req.params.id]);
@@ -285,16 +285,30 @@ router.post('/components/:id/import', async (req, res, next) => {
     for (const b of brands) {
       await client.query(`INSERT INTO brands (component_id, name) VALUES ($1,$2)`, [req.params.id, b.name]);
     }
+    const itemIdByKey = new Map(); // "name||brand" -> new item id, for matching usage history below
     for (const it of items) {
-      await client.query(
+      const { rows } = await client.query(
         `INSERT INTO items (component_id, name, brand, part_no, qty, location, low_stock_override, to_buy)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
         [req.params.id, it.name, it.brand || null, it.part_no || null, it.qty || 0,
          it.location || null, it.low_stock_override ?? null, !!it.to_buy]
       );
+      itemIdByKey.set(`${it.name}||${it.brand || ''}`, rows[0].id);
+    }
+    for (const u of usage) {
+      const itemId = itemIdByKey.get(`${u.name}||${u.brand || ''}`);
+      if (itemId && u.ts) {
+        await client.query(`INSERT INTO usage_log (item_id, used_at) VALUES ($1, to_timestamp($2 / 1000.0))`, [itemId, u.ts]);
+      }
+    }
+    if (settings) {
+      await client.query(
+        `UPDATE components SET low_stock = COALESCE($2, low_stock), fast_window = COALESCE($3, fast_window) WHERE id = $1`,
+        [req.params.id, settings.low_stock ?? null, settings.fast_window ?? null]
+      );
     }
     await client.query('COMMIT');
-    ok(res, { restored: items.length });
+    ok(res, { restored: items.length, usageRestored: usage.length });
   } catch (e) {
     await client.query('ROLLBACK');
     next(e);

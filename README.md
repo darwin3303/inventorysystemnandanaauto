@@ -99,6 +99,27 @@ CREATE TABLE IF NOT EXISTS brands (
 CREATE INDEX IF NOT EXISTS idx_brands_component ON brands(component_id);
 ```
 
+## Importing a backup from the old O2 Sensor Inventory site
+
+That site's export format (`brands` / `sensors` / `movements` / `toBuy` /
+`locations` / `settings`) is different from this app's. Convert it first:
+
+```bash
+node scripts/convert-o2-backup.js old-backup.json converted.json
+```
+
+This maps each sensor to a part (brand, part number/name, quantity, storage
+box → location), carries over your storage locations and brand list, turns
+`toBuy` wishlist entries into zero-stock parts flagged for the buy list (or
+flags the matching existing part if one exists), replays "use" events into
+usage history so the Fast Moving tab has data from day one, and copies over
+your low-stock threshold / fast-mover window. (Equivalent groups aren't
+carried over yet — recreate those manually in the Equiv tab if you used
+that feature.)
+
+Then in the app: create a component (e.g. "O2 Sensors") → open it → Summary
+tab → **Import backup** → choose `converted.json`.
+
 ## Notes
 
 - Swap the files in `public/assets/` to update the logo — keep the same filenames or update the `<img>`/`<link>` tags in `public/index.html` and `public/app.js`.
