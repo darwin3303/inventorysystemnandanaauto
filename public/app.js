@@ -126,11 +126,12 @@ function renderSearch(items, comp){
 function itemCard(i, comp){
   const threshold = i.low_stock_override ?? comp.low_stock;
   const low = i.qty <= threshold;
+  const subParts = [i.brand || null, i.part_no || null, i.location || 'no location'].filter(Boolean);
   return `<div class="card">
     <div class="item-row">
       <div class="item-main">
         <div class="item-name">${esc(i.name)}</div>
-        <div class="item-sub">${esc(i.brand||'—')} · ${esc(i.part_no||'no part #')} · ${esc(i.location||'no location')}</div>
+        <div class="item-sub">${esc(subParts.join(' · '))}</div>
       </div>
       <div class="qty-pill ${low?'low':''}">${i.qty}</div>
     </div>
@@ -240,43 +241,60 @@ function modal(html){
 
 function openItemForm(compId, existing, presetBrand){
   const locOpts = state.locations.map(l=>`<option ${existing&&existing.location===l.name?'selected':''}>${esc(l.name)}</option>`).join('');
-  const existingBrandMissing = existing && existing.brand && !state.brands.some(b=>b.name===existing.brand);
-  const brandOpts = state.brands.map(b=>{
-    const isSelected = existing ? existing.brand===b.name : presetBrand===b.name;
-    return `<option ${isSelected?'selected':''}>${esc(b.name)}</option>`;
-  }).join('') + (existingBrandMissing ? `<option selected>${esc(existing.brand)}</option>` : '');
-  const brandField = state.brands.length
-    ? `<select id="fBrand"><option value="">— none —</option>${brandOpts}</select>`
-    : `<select id="fBrand" disabled><option value="">Add a brand first (Brands tab)</option></select>`;
+  const brand = existing ? (existing.brand || '') : (presetBrand || '');
+  const findDup = (name) => state.items.find(i =>
+    i.id !== (existing && existing.id) &&
+    i.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+    (i.brand || '') === (brand || '')
+  );
   const m = modal(`
-    <h2>${existing? 'Edit part' : 'Add part'}</h2>
-    <div class="field"><label>Name</label><input id="fName" value="${existing?esc(existing.name):''}" placeholder="e.g. Bosch 15730"></div>
-    <div class="field-row">
-      <div class="field"><label>Brand</label>${brandField}</div>
-      <div class="field"><label>Part #</label><input id="fPart" value="${existing?esc(existing.part_no||''):''}"></div>
-    </div>
+    <h2>${existing? 'Edit part' : 'Add part'}${brand ? ` <span style="color:var(--muted); font-weight:500; font-size:14px;">— ${esc(brand)}</span>` : ''}</h2>
+    <div class="field"><label>Part name</label><input id="fName" value="${existing?esc(existing.name):''}" placeholder="e.g. 89465-52330"></div>
+    <div class="dupnotice" id="dupNotice" style="display:none;"></div>
     <div class="field-row">
       <div class="field"><label>Quantity</label><input id="fQty" type="number" min="0" value="${existing?existing.qty:1}"></div>
-      <div class="field"><label>Low-stock override</label><input id="fLow" type="number" min="0" placeholder="default" value="${existing&&existing.low_stock_override!=null?existing.low_stock_override:''}"></div>
-    </div>
-    <div class="field"><label>Location</label>
-      <select id="fLoc"><option value="">— none —</option>${locOpts}</select>
+      <div class="field"><label>Location</label>
+        <select id="fLoc"><option value="">— none —</option>${locOpts}</select>
+      </div>
     </div>
     <div class="sheet-actions">
       <button class="btn ghost" id="cancelForm">Cancel</button>
       <button class="btn primary" id="saveForm">Save</button>
     </div>`);
+
+  const nameInput = m.querySelector('#fName');
+  const dupNotice = m.querySelector('#dupNotice');
+  const saveBtn = m.querySelector('#saveForm');
+  const qtyInput = m.querySelector('#fQty');
+
+  function refreshDupNotice(){
+    const name = nameInput.value.trim();
+    const dup = name ? findDup(name) : null;
+    if (dup){
+      const addQty = parseInt(qtyInput.value) || 0;
+      dupNotice.style.display = 'block';
+      dupNotice.textContent = `Already in inventory${brand ? ' under '+brand : ''} — ${dup.qty} in stock. Saving will add to it${addQty>0 ? ` (→ ${dup.qty+addQty})` : ''}.`;
+      saveBtn.textContent = 'Update stock';
+    } else {
+      dupNotice.style.display = 'none';
+      saveBtn.textContent = 'Save';
+    }
+  }
+  if (!existing){
+    nameInput.oninput = refreshDupNotice;
+    qtyInput.oninput = refreshDupNotice;
+  }
+
   m.querySelector('#cancelForm').onclick = () => m.remove();
-  m.querySelector('#saveForm').onclick = async () => {
-    const name = m.querySelector('#fName').value.trim();
+  saveBtn.onclick = async () => {
+    const name = nameInput.value.trim();
     if (!name) return;
-    const lowVal = m.querySelector('#fLow').value;
     const payload = {
       name,
-      brand: m.querySelector('#fBrand').value.trim(),
-      part_no: m.querySelector('#fPart').value.trim(),
-      qty: parseInt(m.querySelector('#fQty').value)||0,
-      low_stock_override: lowVal === '' ? null : parseInt(lowVal),
+      brand,
+      part_no: existing ? existing.part_no : null,
+      qty: parseInt(qtyInput.value)||0,
+      low_stock_override: existing ? existing.low_stock_override : null,
       location: m.querySelector('#fLoc').value
     };
     try{
@@ -288,17 +306,12 @@ function openItemForm(compId, existing, presetBrand){
       }
 
       // Same name + same brand already in this component? Top up its stock instead of duplicating.
-      const dup = state.items.find(i =>
-        i.name.trim().toLowerCase() === name.toLowerCase() &&
-        (i.brand || '') === (payload.brand || '')
-      );
+      const dup = findDup(name);
       if (dup){
         const addQty = payload.qty || 0;
         if (addQty > 0) await api(`/items/${dup.id}/restock`, { method:'POST', body: JSON.stringify({ amount: addQty }) });
         const patch = {};
-        if (payload.part_no && payload.part_no !== dup.part_no) patch.part_no = payload.part_no;
         if (payload.location && payload.location !== dup.location) patch.location = payload.location;
-        if (payload.low_stock_override !== dup.low_stock_override) patch.low_stock_override = payload.low_stock_override;
         if (Object.keys(patch).length) await api(`/items/${dup.id}`, { method:'PATCH', body: JSON.stringify(patch) });
         m.remove();
         await loadComponent(compId);

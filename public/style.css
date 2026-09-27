@@ -128,6 +128,8 @@ main.with-navbar{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px));}
 .sheet::before{content:""; display:block; width:36px; height:4px; border-radius:3px; background:var(--line); margin:2px auto 14px;}
 .sheet h2{margin:0 0 14px; font-size:18px; font-weight:700; letter-spacing:-.01em;}
 .field{margin-bottom:13px;}
+.dupnotice{background:rgba(214,165,76,.15); border:1px solid var(--gold); color:var(--text); font-size:13px;
+  border-radius:9px; padding:9px 11px; margin:-4px 0 13px; line-height:1.4;}
 .field label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px; font-weight:700; text-transform:uppercase; letter-spacing:.02em;}
 .field input, .field select{width:100%; background:var(--surface2); border:1px solid var(--line);
   border-radius:10px; padding:11px 12px; color:var(--text);}
