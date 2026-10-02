@@ -25,7 +25,7 @@ async function loadHome(){
 }
 
 async function loadComponent(id){
-  state.loading = true; state.brandFilter = null; render();
+  state.loading = true; render();
   const [items, locations, brands] = await Promise.all([
     api(`/components/${id}/items`),
     api(`/components/${id}/locations`),
@@ -145,32 +145,28 @@ function itemCard(i, comp){
 }
 
 function renderBrands(comp){
-  const active = state.brandFilter; // null = "All", else a brand name string
+  if (!state.brands.length){
+    const subtabs = `<div class="tabs subtabs">
+      <button class="tab addtab" id="addBrandTabBtn">+ Add brand</button>
+    </div>`;
+    return `${subtabs}<p class="section-note">Add the brands you stock, then add parts under each one.</p>`;
+  }
+
+  // Default to the first brand (or keep whatever's already selected) — no "All" option.
+  if (!state.brandFilter || !state.brands.some(b => b.name === state.brandFilter)){
+    state.brandFilter = state.brands[0].name;
+  }
+  const active = state.brandFilter;
+
   const subtabs = `<div class="tabs subtabs">
-    <button class="tab ${active===null?'on':''}" data-brandtab="">All</button>
     ${state.brands.map(b=>`<button class="tab ${active===b.name?'on':''}" data-brandtab="${esc(b.name)}">${esc(b.name)}</button>`).join('')}
     <button class="tab addtab" id="addBrandTabBtn">+ Add brand</button>
   </div>`;
 
-  if (!state.brands.length){
-    return `${subtabs}<p class="section-note">Add the brands you stock, then add parts under each one.</p>`;
-  }
-
-  let body;
-  if (active === null){
-    const groups = {};
-    state.items.forEach(i => { const b = i.brand || 'Unbranded'; (groups[b] = groups[b]||[]).push(i); });
-    const brandNames = state.brands.map(b=>b.name);
-    const orderedKeys = [...brandNames.filter(n=>groups[n]), ...Object.keys(groups).filter(k=>!brandNames.includes(k))];
-    body = orderedKeys.length
-      ? orderedKeys.map(b => `<div class="group-title">${esc(b)} (${groups[b].length})</div>` + groups[b].map(i => itemCard(i, comp)).join('')).join('')
-      : `<p class="empty">No parts added under a brand yet — pick a brand tab above and tap + to add one.</p>`;
-  } else {
-    const brandObj = state.brands.find(b => b.name === active);
-    const items = state.items.filter(i => i.brand === active);
-    const removeRow = brandObj ? `<div class="row-actions" style="margin-bottom:14px;"><button data-delbrand="${brandObj.id}" class="danger">Remove "${esc(active)}" from brand list</button></div>` : '';
-    body = removeRow + (items.length ? items.map(i => itemCard(i, comp)).join('') : `<p class="empty">No parts under ${esc(active)} yet — tap + to add one.</p>`);
-  }
+  const brandObj = state.brands.find(b => b.name === active);
+  const items = state.items.filter(i => i.brand === active);
+  const removeRow = brandObj ? `<div class="row-actions" style="margin-bottom:14px;"><button data-delbrand="${brandObj.id}" class="danger">Remove "${esc(active)}" from brand list</button></div>` : '';
+  const body = removeRow + (items.length ? items.map(i => itemCard(i, comp)).join('') : `<p class="empty">No parts under ${esc(active)} yet — tap + to add one.</p>`);
   return subtabs + body;
 }
 
@@ -337,7 +333,7 @@ function wireEvents(){
 
   if (state.view === 'home'){
     document.querySelectorAll('[data-open]').forEach(el => el.onclick = async () => {
-      state.view='component'; state.compId = el.dataset.open; state.tab='search'; state.query='';
+      state.view='component'; state.compId = el.dataset.open; state.tab='search'; state.query=''; state.brandFilter=null;
       await loadComponent(state.compId);
     });
     const addBtn = document.getElementById('addComp');
@@ -357,7 +353,7 @@ function wireEvents(){
         try{
           const comp = await api('/components', { method:'POST', body: JSON.stringify({ name, emoji: m.querySelector('#cEmoji').value.trim() }) });
           m.remove();
-          state.view='component'; state.compId=comp.id; state.tab='search';
+          state.view='component'; state.compId=comp.id; state.tab='search'; state.brandFilter=null;
           state.comps.push({ ...comp, item_count:0 });
           await loadComponent(comp.id);
         }catch(e){ alert(e.message); }
